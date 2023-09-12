@@ -53,7 +53,7 @@ func copyHeaders(w http.ResponseWriter, src http.Header) {
 func rewriteRequest(req *http.Request) {
 	req.RequestURI = ""
 	req.URL.Scheme = "https"
-	req.URL.Host = "api.ticketswap.com"
+	req.URL.Host = req.Host
 }
 
 func proxy(w http.ResponseWriter, req *http.Request) error {
@@ -65,7 +65,7 @@ func proxy(w http.ResponseWriter, req *http.Request) error {
 	}
 
 	// Copy Headers
-	copyHeaders(w, req.Header)
+	copyHeaders(w, res.Header)
 
 	// Copy StatusCode
 	w.WriteHeader(res.StatusCode)
