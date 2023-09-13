@@ -8,6 +8,29 @@ import (
 	"net/http"
 )
 
+func getAnswer(qtype uint16) []byte {
+	switch qtype {
+	case 1:
+		return []byte{
+			0, 1, // Type (A)
+			0, 1, // Class
+			0, 0, 14, 16, // TTL
+			0, 4, // RD Length
+			63, 33, 92, 165, // IPv4
+		}
+	case 28:
+		return []byte{
+			0, 28, // Type (AAAA)
+			0, 1, // Class
+			0, 0, 14, 16, // TTL
+			0, 16, // RD Length
+			42, 5, 208, 24, 24, 114, 152, 11, 16, 246, 113, 232, 7, 204, 173, 46, // IPv6
+		}
+	default:
+		return nil
+	}
+}
+
 func rewrite(msg []byte) []byte {
 	questions := binary.BigEndian.Uint16(msg[4:])
 
@@ -30,18 +53,14 @@ func rewrite(msg []byte) []byte {
 		qtype := binary.BigEndian.Uint16(msg[readOffset:])
 		readOffset += 4
 
-		if qtype == 1 {
-			answers++
-
-			msg = binary.BigEndian.AppendUint16(msg, pointer)
-			msg = append(msg,
-				0, 1, // Type (A)
-				0, 1, // Class
-				0, 0, 14, 16, // TTL
-				0, 4, // RD Length
-				63, 33, 92, 165, // IPv4
-			)
+		answer := getAnswer(qtype)
+		if answer == nil {
+			continue
 		}
+
+		answers++
+		msg = binary.BigEndian.AppendUint16(msg, pointer)
+		msg = append(msg, answer...)
 	}
 
 	output := make([]byte, 0, 1024)
