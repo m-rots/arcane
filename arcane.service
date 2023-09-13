@@ -2,8 +2,8 @@
 Description=Arcane
 
 [Service]
-WorkingDirectory=/home/ec2-user/go-app
-ExecStart=/home/ec2-user/go-app/arcane
+WorkingDirectory=/home/ec2-user/app
+ExecStart=/home/ec2-user/app/arcane
 Restart=on-failure
 User=ec2-user
 
