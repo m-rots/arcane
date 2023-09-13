@@ -2,26 +2,35 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
-	"sync"
 )
 
-var bufPool = sync.Pool{
-	New: func() any {
-		return make([]byte, 32*1024)
-	},
-}
+const apiURL string = "https://api.ticketswap.com/graphql/public"
+
+//go:embed addTicketsToCart.gql
+var addTicketsToCartQuery string
 
 var transport = http.Transport{
+	Proxy:           http.ProxyFromEnvironment,
 	IdleConnTimeout: 0,
 }
 
-var prefetched = sync.Map{}
+var reverseProxy = httputil.ReverseProxy{
+	Director: func(r *http.Request) {
+		r.Header["X-Forwarded-For"] = nil
+		r.URL.Host = "api.ticketswap.com"
+		r.URL.Scheme = "https"
+	},
+	Transport: &transport,
+}
 
 type prefetchedResponse struct {
 	body       []byte
@@ -33,73 +42,23 @@ func ticketswapHandler(w http.ResponseWriter, req *http.Request) error {
 	op := req.Header.Get("x-apollo-operation-name")
 
 	switch op {
-	case "AddTicketsToCart":
-		return addTicketsToCart(w, req)
 	case "GetListing":
 		return prefetch(w, req)
 	default:
-		return proxy(w, req)
+		reverseProxy.ServeHTTP(w, req)
+		return nil
 	}
 }
 
-func copyHeaders(w http.ResponseWriter, src http.Header) {
-	for key, values := range src {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-}
+func base64ListingID(id string) string {
+	// If number, then base64 encode it
+	if _, err := strconv.Atoi(id); err == nil {
+		prefixed := fmt.Sprintf("Listing:%s")
 
-func rewriteRequest(req *http.Request) {
-	req.RequestURI = ""
-	req.URL.Scheme = "https"
-	req.URL.Host = req.Host
-}
-
-func proxy(w http.ResponseWriter, req *http.Request) error {
-	rewriteRequest(req)
-
-	res, err := transport.RoundTrip(req)
-	if err != nil {
-		return err
+		return base64.StdEncoding.EncodeToString([]byte(prefixed))
 	}
 
-	// Copy Headers
-	copyHeaders(w, res.Header)
-
-	// Copy StatusCode
-	w.WriteHeader(res.StatusCode)
-
-	// Copy body through 32kb buffer
-	buf := bufPool.Get().([]byte)
-
-	_, err = io.CopyBuffer(w, res.Body, buf)
-
-	res.Body.Close()
-	bufPool.Put(buf)
-
-	slog.Info("proxied request")
-
-	return err
-}
-
-func addTicketsToCart(w http.ResponseWriter, req *http.Request) error {
-	deviceID := req.Header.Get("device-id")
-
-	res, ok := prefetched.LoadAndDelete(deviceID)
-	if !ok {
-		return proxy(w, req)
-	}
-
-	p := res.(prefetchedResponse)
-
-	copyHeaders(w, p.header)
-	w.WriteHeader(p.statusCode)
-	_, err := w.Write(p.body)
-
-	slog.Info("loaded prefetch")
-
-	return err
+	return id
 }
 
 func prepareBody(body []byte) ([]byte, error) {
@@ -109,16 +68,19 @@ func prepareBody(body []byte) ([]byte, error) {
 		return []byte{}, err
 	}
 
-	return json.Marshal(listingBody{
-		Variables: listingVariables{
-			ID:   base64.StdEncoding.EncodeToString([]byte(cartBody.Variables.ID)),
-			Hash: cartBody.Variables.Hash,
+	return json.Marshal(cartRequest{
+		OperationName: "AddTicketsToCart",
+		Query:         addTicketsToCartQuery,
+		Variables: cartVariables{
+			ID:      base64ListingID(cartBody.Variables.ID),
+			Hash:    cartBody.Variables.Hash,
+			Tickets: 1,
 		},
 	})
 }
 
 func prefetch(w http.ResponseWriter, listingReq *http.Request) error {
-	deviceID := listingReq.Header.Get("device-id")
+	ctx := listingReq.Context()
 
 	listingReqBody, err := io.ReadAll(listingReq.Body)
 	if err != nil {
@@ -130,39 +92,27 @@ func prefetch(w http.ResponseWriter, listingReq *http.Request) error {
 		return err
 	}
 
-	addToCartReq := listingReq.Clone(listingReq.Context())
+	addToCartReader := bytes.NewReader(addToCartReqBody)
+	addToCartReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, addToCartReader)
+	if err != nil {
+		return err
+	}
 
-	rewriteRequest(addToCartReq)
-	addToCartReq.Body = io.NopCloser(bytes.NewReader(addToCartReqBody))
-
+	addToCartReq.Header = listingReq.Header.Clone()
 	addToCartReq.Header.Set("x-apollo-operation-type", "mutation")
 	addToCartReq.Header.Set("x-apollo-operation-name", "AddTicketsToCart")
-	addToCartReq.Header.Set("content-length", strconv.Itoa(len(addToCartReqBody)))
 
 	addToCartRes, err := transport.RoundTrip(addToCartReq)
 	if err != nil {
 		return err
 	}
 
-	defer addToCartRes.Body.Close()
-
-	addToCartResBody, err := io.ReadAll(addToCartRes.Body)
-	if err != nil {
-		return err
-	}
-
-	prefetched.Store(deviceID, prefetchedResponse{
-		body:       addToCartResBody,
-		header:     addToCartRes.Header,
-		statusCode: addToCartRes.StatusCode,
-	})
-
-	slog.Info("stored prefetch")
+	addToCartRes.Body.Close()
+	slog.Info("put a thing in a cart! maybe?")
 
 	listingReq.Body = io.NopCloser(bytes.NewReader(listingReqBody))
-	listingReq.Header.Del("accept-encoding")
-
-	return proxy(w, listingReq)
+	reverseProxy.ServeHTTP(w, listingReq)
+	return nil
 }
 
 type cartRequest struct {

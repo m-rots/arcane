@@ -1,0 +1,429 @@
+mutation AddTicketsToCart($listingId: ID!, $listingHash: String!, $amountOfTickets: Int, $ticketIds: [ID!], $currency: CurrencyCode) {
+  addTicketsToCart(
+    input: {listingId: $listingId, listingHash: $listingHash, amountOfTickets: $amountOfTickets, ticketIds: $ticketIds}
+  ) {
+    __typename
+    user {
+      __typename
+      cart {
+        __typename
+        id
+      }
+      checkout {
+        __typename
+        ...CheckoutFields
+      }
+    }
+    numberOfRequestedTickets
+    numberOfReservedTickets
+    errors {
+      __typename
+      code
+      message
+    }
+  }
+}
+fragment CheckoutFields on Checkout {
+  __typename
+  totalPrice(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  totalPriceInCheckoutCurrency: totalPrice {
+    __typename
+    ...MoneyFields
+  }
+  totalPriceWithoutDiscounts(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  totalFeePrice(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  discountCode {
+    __typename
+    ...DiscountCodeFields
+  }
+  fees {
+    __typename
+    name
+    label
+    amount(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+  }
+  selectedPaymentMethod {
+    __typename
+    ...PaymentMethodFields
+  }
+  supportedPaymentMethods {
+    __typename
+    ...PaymentMethodFields
+  }
+  rows {
+    __typename
+    id
+    title
+    quantity
+    totalPriceInCheckoutCurrency: totalPrice {
+      __typename
+      ...MoneyFields
+    }
+    totalPrice(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    isMandatory
+    ...CheckoutTicketRowFields
+    ...CheckoutPayoutReversalRowFields
+  }
+  payment {
+    __typename
+    hash
+  }
+}
+fragment MoneyFields on Money {
+  __typename
+  amount
+  currency
+}
+fragment DiscountCodeFields on CheckoutDiscountCode {
+  __typename
+  id
+  code
+  discountAmount(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+}
+fragment PaymentMethodFields on PaymentMethod {
+  __typename
+  name
+  label
+  fields {
+    __typename
+    name
+    label
+    options {
+      __typename
+      name
+      label
+      value
+    }
+  }
+}
+fragment CheckoutTicketRowFields on CheckoutTicketRow {
+  __typename
+  id
+  title
+  quantity
+  eventType {
+    __typename
+    ...EventTypeFields
+  }
+  ticketGroups {
+    __typename
+    ...CheckoutTicketGroupFields
+  }
+  isSecureSwap
+  totalPriceInCheckoutCurrency: totalPrice {
+    __typename
+    ...MoneyFields
+  }
+  totalPrice(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+}
+fragment EventTypeFields on EventType {
+  __typename
+  id
+  title
+  startDate
+  endDate
+  isExpired
+  availableTicketsCount
+  soldTicketsCount
+  ticketAlertsCount
+  isOngoing
+  buyerWarning {
+    __typename
+    message
+  }
+  event {
+    __typename
+    id
+    name
+    closedLoopInformation {
+      __typename
+      ticketProviderName
+    }
+    location {
+      __typename
+      ...LocationFields
+    }
+    timeZone
+  }
+  listings(first: 10, filter: {listingStatus: AVAILABLE}) {
+    __typename
+    pageInfo {
+      __typename
+      ...PageInfoFields
+    }
+    edges {
+      __typename
+      node {
+        __typename
+        ...ListingItemFields
+      }
+    }
+  }
+  soldListings(first: 5) {
+    __typename
+    pageInfo {
+      __typename
+      ...PageInfoFields
+    }
+    edges {
+      __typename
+      node {
+        __typename
+        ...ListingItemFields
+      }
+    }
+  }
+  ticketAlerts(first: 18) {
+    __typename
+    edges {
+      __typename
+      node {
+        __typename
+        id
+        user {
+          __typename
+          avatar
+        }
+      }
+    }
+  }
+  organizerProduct {
+    __typename
+    id
+    displayPrice {
+      __typename
+      amount
+      currency
+    }
+    shop {
+      __typename
+      organizerBranding {
+        __typename
+        name
+        image
+      }
+    }
+  }
+}
+fragment LocationFields on Location {
+  __typename
+  id
+  uri {
+    __typename
+    ...UriFields
+  }
+  name
+  city {
+    __typename
+    ...CityFields
+  }
+  image
+  geoInfo {
+    __typename
+    longitude
+    latitude
+  }
+  supportsAttachments
+}
+fragment UriFields on Uri {
+  __typename
+  url: trackingUrl
+  path
+}
+fragment CityFields on City {
+  __typename
+  id
+  geoInfo {
+    __typename
+    latitude
+    longitude
+  }
+  uri {
+    __typename
+    ...UriFields
+  }
+  name
+  country {
+    __typename
+    ...CountryFields
+  }
+  imageUrl
+}
+fragment CountryFields on Country {
+  __typename
+  name
+  code
+}
+fragment PageInfoFields on PageInfo {
+  __typename
+  hasNextPage
+  endCursor
+}
+fragment ListingItemFields on Listing {
+  __typename
+  id
+  hash
+  status
+  uri {
+    __typename
+    ...UriFields
+  }
+  numberOfTicketsInListing
+  numberOfTicketsStillForSale
+  description
+  price {
+    __typename
+    originalPrice(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    sellerPrice(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    serviceFeeForBuyer(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    totalPrice(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    totalPriceWithTransactionFee(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+    transactionFeePerTicket(toCurrency: $currency) {
+      __typename
+      ...MoneyFields
+    }
+  }
+  priceInSellersCurrency: price {
+    __typename
+    originalPrice {
+      __typename
+      ...MoneyFields
+    }
+    sellerPrice {
+      __typename
+      ...MoneyFields
+    }
+    serviceFeeForBuyer {
+      __typename
+      ...MoneyFields
+    }
+    totalPrice {
+      __typename
+      ...MoneyFields
+    }
+    totalPriceWithTransactionFee {
+      __typename
+      ...MoneyFields
+    }
+    transactionFeePerTicket {
+      __typename
+      ...MoneyFields
+    }
+  }
+  seller {
+    __typename
+    firstname
+    avatar
+  }
+}
+fragment CheckoutTicketGroupFields on CheckoutTicketGroup {
+  __typename
+  quantity
+  priceInCheckoutCurrency: price {
+    __typename
+    ...MoneyFields
+  }
+  price(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  totalPrice(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  totalPriceInCheckoutCurrency: totalPrice {
+    __typename
+    ...MoneyFields
+  }
+  listing {
+    __typename
+    id
+    seller {
+      __typename
+      firstname
+      avatar
+    }
+    description
+    dateRange {
+      __typename
+      ...DateRangeFields
+    }
+  }
+  tickets {
+    __typename
+    ...TicketFields
+  }
+}
+fragment DateRangeFields on DateRange {
+  __typename
+  startDate
+  endDate
+}
+fragment TicketFields on Ticket {
+  __typename
+  id
+  seating {
+    __typename
+    ...TicketSeatingFields
+  }
+  hasAttachment
+}
+fragment TicketSeatingFields on TicketSeating {
+  __typename
+  id
+  entrance
+  section
+  row
+  seat
+}
+fragment CheckoutPayoutReversalRowFields on CheckoutPayoutReversalRow {
+  __typename
+  id
+  title
+  quantity
+  totalPriceInCheckoutCurrency: totalPrice {
+    __typename
+    ...MoneyFields
+  }
+  totalPrice(toCurrency: $currency) {
+    __typename
+    ...MoneyFields
+  }
+  isMandatory
+}
