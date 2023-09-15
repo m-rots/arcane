@@ -32,12 +32,6 @@ var reverseProxy = httputil.ReverseProxy{
 	Transport: &transport,
 }
 
-type prefetchedResponse struct {
-	body       []byte
-	header     http.Header
-	statusCode int
-}
-
 func ticketswapHandler(w http.ResponseWriter, req *http.Request) error {
 	op := req.Header.Get("x-apollo-operation-name")
 
@@ -62,9 +56,9 @@ func base64ListingID(id string) string {
 }
 
 func prepareBody(body []byte) ([]byte, error) {
-	var cartBody cartRequest
+	var listingBody listingRequest
 
-	if err := json.Unmarshal(body, &cartBody); err != nil {
+	if err := json.Unmarshal(body, &listingBody); err != nil {
 		return []byte{}, err
 	}
 
@@ -72,8 +66,8 @@ func prepareBody(body []byte) ([]byte, error) {
 		OperationName: "AddTicketsToCart",
 		Query:         addTicketsToCartQuery,
 		Variables: cartVariables{
-			ID:      base64ListingID(cartBody.Variables.ID),
-			Hash:    cartBody.Variables.Hash,
+			ID:      base64ListingID(listingBody.Variables.ID),
+			Hash:    listingBody.Variables.Hash,
 			Tickets: 1,
 		},
 	})
@@ -127,7 +121,7 @@ type cartVariables struct {
 	ID      string `json:"listingId"`
 }
 
-type listingBody struct {
+type listingRequest struct {
 	Variables listingVariables `json:"variables"`
 }
 
