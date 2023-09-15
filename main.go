@@ -1,29 +1,42 @@
 package main
 
 import (
-	"log"
 	"log/slog"
 	"net/http"
+	"os"
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
+
 	err := http.ListenAndServeTLS(":443", "cert.pem", "key.pem", ServerNameHandler{})
-	log.Fatal(err)
+	slog.Error("listening failed", "err", err)
 }
 
 type ServerNameHandler struct{}
 
-func (h ServerNameHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	slog.Info("request!", "method", req.Method, "server", req.TLS.ServerName, "url", req.URL)
+func (h ServerNameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	logger := slog.With("path", r.URL.Path)
 
-	switch req.TLS.ServerName {
+	switch r.TLS.ServerName {
 	case "api.ticketswap.com":
-		if err := ticketswapHandler(w, req); err != nil {
-			slog.Error("ticketswap", "err", err)
+		ticketLogger := logger.With(
+			"device", r.Header.Get("device-id"),
+			"op", r.Header.Get("x-apollo-operation-name"),
+		)
+
+		if err := ticketswapHandler(w, r); err != nil {
+			ticketLogger.Error("ticketswap", "err", err)
+		} else {
+			ticketLogger.Info("ticketswap")
 		}
 	case "dns.arcane.m-rots.com":
-		dnsHandler(w, req)
+		dnsHandler(w, r)
+
+		logger.Info("dns", "method", r.Method)
 	default:
 		w.WriteHeader(http.StatusNotFound)
+		logger.Debug("unknown")
 	}
 }

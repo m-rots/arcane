@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"io"
-	"log/slog"
 	"net/http"
 )
 
@@ -80,8 +79,6 @@ func rewrite(msg []byte) []byte {
 }
 
 func writeResponse(w http.ResponseWriter, msg []byte) {
-	slog.Info("rewrote dns")
-
 	w.Header().Set("content-type", "application/dns-message")
 	w.Write(rewrite(msg))
 }
