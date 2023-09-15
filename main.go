@@ -1,17 +1,40 @@
 package main
 
 import (
+	"crypto/tls"
+	_ "embed"
 	"log/slog"
 	"net/http"
 	"os"
 )
 
+//go:embed cert.pem
+var certPem []byte
+
+//go:embed key.pem
+var keyPem []byte
+
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
-	err := http.ListenAndServeTLS(":443", "cert.pem", "key.pem", ServerNameHandler{})
+	err := serve()
 	slog.Error("listening failed", "err", err)
+}
+
+func serve() error {
+	cert, err := tls.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		return err
+	}
+
+	config := &tls.Config{Certificates: []tls.Certificate{cert}}
+	server := &http.Server{
+		Handler:   ServerNameHandler{},
+		TLSConfig: config,
+	}
+
+	return server.ListenAndServeTLS("", "")
 }
 
 type ServerNameHandler struct{}
