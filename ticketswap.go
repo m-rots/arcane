@@ -18,18 +18,12 @@ const apiURL string = "https://api.ticketswap.com/graphql/public"
 //go:embed addTicketsToCart.gql
 var addTicketsToCartQuery string
 
-var transport = http.Transport{
-	Proxy:           http.ProxyFromEnvironment,
-	IdleConnTimeout: 0,
-}
-
 var reverseProxy = httputil.ReverseProxy{
 	Director: func(r *http.Request) {
 		r.Header["X-Forwarded-For"] = nil
 		r.URL.Host = "api.ticketswap.com"
 		r.URL.Scheme = "https"
 	},
-	Transport: &transport,
 }
 
 func ticketswapHandler(w http.ResponseWriter, req *http.Request) error {
@@ -96,7 +90,7 @@ func prefetch(w http.ResponseWriter, listingReq *http.Request) error {
 	addToCartReq.Header.Set("x-apollo-operation-type", "mutation")
 	addToCartReq.Header.Set("x-apollo-operation-name", "AddTicketsToCart")
 
-	addToCartRes, err := transport.RoundTrip(addToCartReq)
+	addToCartRes, err := http.DefaultTransport.RoundTrip(addToCartReq)
 	if err != nil {
 		return err
 	}
